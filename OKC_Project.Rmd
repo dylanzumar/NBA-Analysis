@@ -1,0 +1,357 @@
+---
+title: "OKC Project"
+author: "Dylan Zumar"
+date: "11/05/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r load-libraries}
+library("dplyr")
+library("ggplot2")
+library("broom")
+library("knitr")
+library("cowplot")
+library("readr")
+library("arm")
+library("olsrr")
+library("caret")
+library("tidyr")
+library("car")
+```
+
+```{r data}
+all_nba <- read.csv("all-nba-okc-dataset.csv")
+glimpse(all_nba)
+```
+
+
+```{r}
+all_nba$All.NBA.TEAM.Yes...No = factor(all_nba$All.NBA.TEAM.Yes...No)
+levels(all_nba$All.NBA.TEAM.Yes...No)
+```
+
+
+
+```{r}
+na_count <-sapply(all_nba, function(y) sum(length(which(is.na(y)))))
+na_count <- data.frame(na_count)
+na_count
+
+all_nba <- all_nba %>%
+  mutate(X3P._Total = if_else(is.na(X3P._Total), 0, X3P._Total)) %>%
+  mutate(X3P._Per100 = if_else(is.na(X3P._Per100), 0, X3P._Per100)) %>%
+  mutate(X3P._PerGame = if_else(is.na(X3P._Per100), 0, X3P._Per100))
+
+all_nba_mean_centered <- all_nba %>%
+  group_by(Year.End) %>%
+  mutate(G	= G - mean(G),
+         GS = GS - mean(GS),	
+         MP_Total	= MP_Total - mean(MP_Total, na.rm=TRUE),
+         FG_Total	= FG_Total - mean(FG_Total, na.rm=TRUE),
+         FGA_Total	= FGA_Total - mean(FGA_Total, na.rm=TRUE),
+         FG._Total	= FG._Total - mean(FG._Total, na.rm=TRUE),
+         X3P_Total	= X3P_Total - mean(X3P_Total, na.rm=TRUE),
+         X3PA_Total	= X3PA_Total - mean(X3PA_Total, na.rm=TRUE),
+         X3P._Total	= X3P._Total - mean(X3P._Total, na.rm=TRUE),
+         X2P_Total	= X2P_Total - mean(X2P_Total, na.rm=TRUE),
+         X2PA_Total	= X2PA_Total - mean(X2PA_Total, na.rm=TRUE),
+         X2P._Total = X2P._Total - mean(X2P._Total, na.rm=TRUE),
+         eFG._Total	= eFG._Total - mean(eFG._Total, na.rm=TRUE),
+         FT_Total	= FT_Total - mean(FT_Total, na.rm=TRUE),
+         FTA_Total = FTA_Total - mean(FTA_Total, na.rm=TRUE),
+         FT._Total	= FT._Total - mean(FT._Total, na.rm=TRUE),
+         ORB_Total	= ORB_Total - mean(ORB_Total, na.rm=TRUE),
+         DRB_Total	= DRB_Total - mean(DRB_Total, na.rm=TRUE),
+         TRB_Total	= TRB_Total - mean(TRB_Total, na.rm=TRUE),
+         AST_Total	= AST_Total - mean(AST_Total, na.rm=TRUE),
+         STL_Total	= STL_Total - mean(STL_Total, na.rm=TRUE),
+         BLK_Total	= BLK_Total - mean(BLK_Total, na.rm=TRUE),
+         TOV_Total	= TOV_Total - mean(TOV_Total, na.rm=TRUE),
+         PF_Total	= PF_Total - mean(PF_Total, na.rm=TRUE),
+         PTS_Total	= PTS_Total - mean(PTS_Total, na.rm=TRUE),
+         PER_ADV	= PER_ADV - mean(PER_ADV, na.rm=TRUE),
+         TS._ADV	= TS._ADV - mean(TS._ADV, na.rm=TRUE),
+         X3PAr_ADV	= X3PAr_ADV - mean(X3PAr_ADV, na.rm=TRUE),
+         FTr_ADV	= FTr_ADV - mean(FTr_ADV, na.rm=TRUE),
+         ORB._ADV	= ORB._ADV - mean(ORB._ADV, na.rm=TRUE),
+         DRB._ADV	= DRB._ADV - mean(DRB._ADV, na.rm=TRUE),
+         TRB._ADV	= TRB._ADV - mean(TRB._ADV, na.rm=TRUE),
+         AST._ADV	= AST._ADV - mean(AST._ADV, na.rm=TRUE),
+         STL._ADV	= STL._ADV - mean(STL._ADV, na.rm=TRUE),
+         BLK._ADV	= BLK._ADV - mean(BLK._ADV, na.rm=TRUE),
+         TOV._ADV	= TOV._ADV - mean(TOV._ADV, na.rm=TRUE),
+         USG._ADV	= USG._ADV - mean(USG._ADV, na.rm=TRUE),
+         OWS_ADV	= OWS_ADV - mean(OWS_ADV, na.rm=TRUE),
+         DWS_ADV	= DWS_ADV - mean(DWS_ADV, na.rm=TRUE),
+         WS_ADV	= WS_ADV - mean(WS_ADV, na.rm=TRUE),
+         WS.48_ADV	= WS.48_ADV - mean(WS.48_ADV, na.rm=TRUE),
+         FG_Per100	= FG_Per100 - mean(FG_Per100, na.rm=TRUE),
+         FGA_Per100	= FGA_Per100 - mean(FGA_Per100, na.rm=TRUE),
+         FG._Per100	= FG._Per100 - mean(FG._Per100, na.rm=TRUE),
+         X3P_Per100	= X3P_Per100 - mean(X3P_Per100, na.rm=TRUE),
+         X3PA_Per100	= X3PA_Per100 - mean(X3PA_Per100, na.rm=TRUE),
+         X3P._Per100	= X3P._Per100 - mean(X3P._Per100, na.rm=TRUE),
+         X2P_Per100	= X2P_Per100 - mean(X2P_Per100, na.rm=TRUE),
+         X2PA_Per100	= X2PA_Per100 - mean(X2PA_Per100, na.rm=TRUE),
+         X2P._Per100	= X2P._Per100 - mean(X2P._Per100, na.rm=TRUE),
+         FT_Per100	= FT_Per100 - mean(FT_Per100, na.rm=TRUE),
+         FTA_Per100	= FTA_Per100 - mean(FTA_Per100, na.rm=TRUE),
+         FT._Per100	= FT._Per100 - mean(FT._Per100, na.rm=TRUE),
+         ORB_Per100	= ORB_Per100 - mean(ORB_Per100, na.rm=TRUE),
+         DRB_Per100	= DRB_Per100 - mean(DRB_Per100, na.rm=TRUE),
+         TRB_Per100	= TRB_Per100 - mean(TRB_Per100, na.rm=TRUE),
+         AST_Per100	= AST_Per100 - mean(AST_Per100, na.rm=TRUE),
+         STL_Per100	= STL_Per100 - mean(STL_Per100, na.rm=TRUE),
+         BLK_Per100	= BLK_Per100 - mean(BLK_Per100, na.rm=TRUE),
+         TOV_Per100	= TOV_Per100 - mean(TOV_Per100, na.rm=TRUE),
+         PF_Per100	= PF_Per100 - mean(PF_Per100, na.rm=TRUE),
+         PTS_Per100	= PTS_Per100 - mean(PTS_Per100, na.rm=TRUE),
+         DRtg_Per100	= DRtg_Per100 - mean(DRtg_Per100, na.rm=TRUE),
+         MP_PerGame	= MP_PerGame - mean(MP_PerGame, na.rm=TRUE),
+         FG_PerGame	= FG_PerGame - mean(FG_PerGame, na.rm=TRUE),
+         FGA_PerGame	= FGA_PerGame - mean(FGA_PerGame, na.rm=TRUE),
+         FG._PerGame	= FG._PerGame - mean(FG._PerGame, na.rm=TRUE),
+         X3P_PerGame	= X3P_PerGame - mean(X3P_PerGame, na.rm=TRUE),
+         X3PA_PerGame= X3PA_PerGame - mean(X3PA_PerGame, na.rm=TRUE),	
+         X3P._PerGame= X3P._PerGame - mean(X3P._PerGame, na.rm=TRUE),	
+         X2P_PerGame	= X2P_PerGame - mean(X2P_PerGame, na.rm=TRUE),
+         X2PA_PerGame= X2PA_PerGame - mean(X2PA_PerGame, na.rm=TRUE),	
+         X2P._PerGame	= X2P._PerGame - mean(X2P._PerGame, na.rm=TRUE),
+         eFG._PerGame	= eFG._PerGame - mean(eFG._PerGame, na.rm=TRUE),
+         FT_PerGame	= FT_PerGame - mean(FT_PerGame, na.rm=TRUE),
+         FTA_PerGame	= FTA_PerGame - mean(FTA_PerGame, na.rm=TRUE),
+         FT._PerGame	= FT._PerGame - mean(FT._PerGame, na.rm=TRUE),
+         ORB_PerGame	= ORB_PerGame - mean(ORB_PerGame, na.rm=TRUE),
+         DRB_PerGame	= DRB_PerGame - mean(DRB_PerGame, na.rm=TRUE),
+         TRB_PerGame	= TRB_PerGame - mean(TRB_PerGame, na.rm=TRUE),
+         AST_PerGame	= AST_PerGame - mean(AST_PerGame, na.rm=TRUE),
+         STL_PerGame	= STL_PerGame - mean(STL_PerGame, na.rm=TRUE),
+         BLK_PerGame	= BLK_PerGame - mean(BLK_PerGame, na.rm=TRUE),
+         TOV_PerGame	= TOV_PerGame - mean(TOV_PerGame, na.rm=TRUE),
+         PF_PerGame	= PF_PerGame - mean(PF_PerGame, na.rm=TRUE),
+         PS.G_PerGame= PS.G_PerGame - mean(PS.G_PerGame, na.rm=TRUE))
+
+all_nba_mean_centered_no_NA <- all_nba_mean_centered %>%
+  dplyr::select(-OBPM_ADV,-DBPM_ADV,-BPM_ADV,-VORP_ADV,-ORtg_Per100) %>%
+  na.omit()
+```
+
+
+FG._Total 49     #REMOVE_NAs
+X3P._Total 2113 #RECODE to 0
+X2P._Total 79     #REMOVE_NAs
+eFG._Total 49     #REMOVE_NAs
+FT._Total 435     #REMOVE_NAs
+PER_ADV 3        #REMOVE_NAs
+TS._ADV 44     #REMOVE_NAs
+X3PAr_ADV 49     #REMOVE_NAs
+FTr_ADV 49     #REMOVE_NAs
+ORB._ADV 3      #REMOVE_NAs
+DRB._ADV 3     #REMOVE_NAs
+TRB._ADV 3     #REMOVE_NAs
+AST._ADV 3     #REMOVE_NAs
+STL._ADV 3     #REMOVE_NAs
+BLK._ADV 3     #REMOVE_NAs
+TOV._ADV 36     #REMOVE_NAs
+USG._ADV 3     #REMOVE_NAs
+WS.48_ADV 4     #REMOVE_NAs
+OBPM_ADV	587			#DONT_USE
+DBPM_ADV	587				#DONT_USE
+BPM_ADV	587				#DONT_USE
+VORP_ADV	587   	#DONT_USE
+FG_Per100	3			#REMOVE_NAs
+FGA_Per100	3			#REMOVE_NAs
+FG._Per100	49			#REMOVE_NAs
+X3P_Per100	3			#REMOVE_NAs
+X3PA_Per100	3			#REMOVE_NAs
+X3P._Per100	2113   #RECODE TO 0
+X2P_Per100	3			#REMOVE_NAs
+X2PA_Per100	3			#REMOVE_NAs
+X2P._Per100	79			#REMOVE_NAs
+FT_Per100	3			#REMOVE_NAs
+FTA_Per100	3			#REMOVE_NAs
+FT._Per100	435			#REMOVE_NAs
+ORB_Per100	3			#REMOVE_NAs
+DRB_Per100	3			#REMOVE_NAs
+TRB_Per100	3		#REMOVE_NAs	
+AST_Per100	3	#REMOVE_NAs
+STL_Per100	3			#REMOVE_NAs
+BLK_Per100	3			#REMOVE_NAs
+TOV_Per100	3			#REMOVE_NAs
+PF_Per100	3			#REMOVE_NAs
+PTS_Per100	3			#REMOVE_NAs
+ORtg_Per100	735			#DONT_USE
+DRtg_Per100	4	   #REMOVE_NAs
+FG._PerGame	49			#REMOVE_NAs
+X3P._PerGame	2113		#RECODE TO 0	
+X2P._PerGame	79			#REMOVE_NAs
+eFG._PerGame	49      #REMOVE_NAs
+FT._PerGame	435     #REMOVE_NAs
+
+
+```{r}
+all_nba_mean_centered_no_NA %>%
+  group_by(Year.End) %>%
+  count(All.NBA.TEAM.Yes...No)
+```
+
+
+
+
+```{r}
+test<- all_nba_mean_centered_no_NA %>%
+  dplyr::select(-Player,-Tm,-Year.End,-Pos,-Pos_Rev,-All.NBA.TEAM.Yes...No,-All.NBA.Team)
+
+remove <- findCorrelation(cor(test), cutoff = .8, verbose = TRUE, names = TRUE)
+new_test <- test %>%
+  dplyr::select(-remove)
+component1 <- all_nba_mean_centered_no_NA %>%
+  dplyr::select(ID,Player,Tm,Pos,Pos_Rev,All.NBA.TEAM.Yes...No,All.NBA.Team)
+
+final_data <- merge(component1,new_test, by="ID")
+```
+
+
+
+
+---------------
+
+```{r}
+model.full <- glm(All.NBA.TEAM.Yes...No ~ Age +
+          G+
+          GS +
+          X2P._Total +
+          PER_ADV +
+          X3PAr_ADV + 
+          FTr_ADV+
+          DRB._ADV+
+          TOV._ADV+
+          WS_ADV+
+          WS.48_ADV+
+          FGA_Per100+
+          X2PA_Per100+
+          FTA_Per100+
+          ORB_Per100+
+          AST_Per100+
+          STL_Per100+
+          BLK_Per100+
+          TOV_Per100+
+          PF_Per100+
+          DRtg_Per100+
+          X3P._PerGame+
+          FT._PerGame+
+          ORB_PerGame+
+          STL_PerGame+
+          BLK_PerGame+
+          TOV_PerGame+
+          PF_PerGame
+           , family=binomial,data=all_nba_mean_centered_no_NA) #model will all possible variables
+AIC(model.full)
+step(model.full)
+```
+
+```{r}
+stepped.model <- glm(formula = All.NBA.TEAM.Yes...No ~ Age + GS + X2P._Total + 
+    PER_ADV + X3PAr_ADV + DRB._ADV + TOV._ADV + WS_ADV + WS.48_ADV + 
+    FGA_Per100 + X2PA_Per100 + FTA_Per100 + ORB_Per100 + AST_Per100 + 
+    STL_Per100 + TOV_Per100 + X3P._PerGame + ORB_PerGame + STL_PerGame + 
+    BLK_PerGame + TOV_PerGame + PF_PerGame, family = binomial, 
+    data = all_nba_mean_centered_no_NA)
+AIC(stepped.model)
+tidy(vif(stepped.model))
+```
+
+X3PAr_ADV	24.518747	
+
+TOV._ADV	22.763748	
+
+FGA_Per100	40.499713	
+
+X2PA_Per100	47.235640	
+
+ORB_Per100	68.532403	
+
+STL_Per100	38.416568	
+
+TOV_Per100	61.295742	
+
+ORB_PerGame	63.049437	REMOVE
+
+STL_PerGame	38.554546	REMOVE
+
+TOV_PerGame	39.247480	REMOVE
+
+```{r}
+stepped.model <- glm(formula = All.NBA.TEAM.Yes...No ~ Age + GS + X2P._Total + 
+    PER_ADV + X3PAr_ADV + DRB._ADV + TOV._ADV + WS_ADV + WS.48_ADV + 
+    FGA_Per100 + X2PA_Per100 + FTA_Per100 + ORB_Per100 + AST_Per100 + 
+    STL_Per100 + TOV_Per100 + X3P._PerGame + 
+    BLK_PerGame + PF_PerGame, family = binomial, 
+    data = all_nba_mean_centered_no_NA)
+AIC(stepped.model)
+tidy(vif(stepped.model))
+```
+
+X3PAr_ADV	17.149268	
+TOV._ADV	22.419635	
+FGA_Per100	33.297873 REMOVE
+X2PA_Per100	35.948148	REMOVE
+TOV_Per100	19.044800	REMOVE
+
+```{r}
+stepped.model <- glm(formula = All.NBA.TEAM.Yes...No ~ Age + GS + X2P._Total + 
+    PER_ADV + X3PAr_ADV + DRB._ADV + TOV._ADV + WS_ADV + WS.48_ADV + 
+    FTA_Per100 + ORB_Per100 + AST_Per100 + 
+    STL_Per100 + X3P._PerGame + 
+    BLK_PerGame + PF_PerGame, family = binomial, 
+    data = all_nba_mean_centered_no_NA)
+AIC(stepped.model)
+tidy(vif(stepped.model))
+```
+
+## Interactions
+
+```{r}
+interaction.model <- glm(formula = All.NBA.TEAM.Yes...No ~ X2P._Total + 
+    PER_ADV + X3PAr_ADV + DRB._ADV + TOV._ADV + WS_ADV + WS.48_ADV + 
+    FTA_Per100 + ORB_Per100 + AST_Per100 + 
+    STL_Per100 + X3P._PerGame + 
+    BLK_PerGame + PF_PerGame, family = binomial, 
+    data = all_nba_mean_centered_no_NA)
+
+base.model <- glm(formula = All.NBA.TEAM.Yes...No ~ Age + GS + X2P._Total + 
+    PER_ADV + X3PAr_ADV + DRB._ADV + TOV._ADV + WS_ADV + WS.48_ADV + 
+    FTA_Per100 + ORB_Per100 + AST_Per100 + 
+    STL_Per100 + X3P._PerGame + 
+    BLK_PerGame + PF_PerGame, family = binomial, 
+    data = all_nba_mean_centered_no_NA)
+
+tidy(base.model)
+
+```
+
+No significant interactions
+
+## Predictions
+
+```{r}
+all_nba_mean_centered_no_NA %>%
+  ungroup() %>%
+  mutate(Prediction = fitted(base.model)) %>%
+  filter(All.NBA.TEAM.Yes...No == "No") %>%
+  dplyr::select(Player,Year.End, All.NBA.TEAM.Yes...No, Prediction)
+```
+
+```{r}
+all_nba_mean_centered_no_NA %>%
+  group_by(Player) %>%
+  filter(All.NBA.TEAM.Yes...No == "Yes") %>%
+  summarise(count = n())
+```
+
